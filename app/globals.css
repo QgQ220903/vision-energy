@@ -1,41 +1,134 @@
+/* global.css - Phong cách chuyên nghiệp, thân thiện */
 @import "tailwindcss";
 
 @theme {
-  /* Gán các biến CSS vào hệ thống màu của Tailwind */
+  /* Hệ thống màu chuyên nghiệp */
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   --color-card: hsl(var(--card));
-  --color-primary: hsl(var(--primary));
-  --color-accent: hsl(var(--accent));
+  --color-card-secondary: hsl(var(--card-secondary));
+  --color-primary: hsl(var(--primary));        /* Xanh dương tin cậy */
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-accent: hsl(var(--accent));          /* Xanh lá thân thiện */
+  --color-accent-foreground: hsl(var(--accent-foreground));
   --color-input: hsl(var(--input));
   --color-border: hsl(var(--border));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-success: hsl(var(--success));
+  
+  /* Border radius nhẹ nhàng */
+  --radius-lg: 1rem;
+  --radius-md: 0.75rem;
+  --radius-sm: 0.5rem;
 }
 
 :root {
-  /* CHẾ ĐỘ SÁNG (Light Mode) */
-  --background: 210 40% 98%;    /* Nền xám xanh rất nhạt */
-  --foreground: 222 47% 11%;    /* Chữ đen Navy */
+  /* Light Mode - Phong cách sạch sẽ, rõ ràng */
+  --background: 0 0% 100%;                    /* Nền trắng sạch sẽ */
+  --foreground: 220 70% 15%;                  /* Chữ xanh đậm chuyên nghiệp */
   
-  --card: 0 0% 100%;            /* Card trắng tinh */
-  --card-foreground: 222 47% 11%;
+  --card: 210 40% 98%;                        /* Card xanh nhạt nhẹ nhàng */
+  --card-secondary: 0 0% 100%;                /* Card phụ trắng */
+  --card-foreground: 220 70% 15%;
   
-  --primary: 142 70% 45%;       /* XANH LÁ của bạn */
-  --accent: 217 91% 60%;        /* XANH DƯƠNG của bạn */
+  --primary: 210 100% 35%;                    /* Xanh dương tin cậy (#0066CC) */
+  --primary-foreground: 0 0% 100%;
+  --accent: 90 55% 45%;                       /* Xanh lá thân thiện (#7FBF3F) */
+  --accent-foreground: 0 0% 100%;
 
-  --input: 210 40% 95%;         /* Nền Input nhạt hơn card */
-  --border: 214 32% 91%;
+  --input: 0 0% 100%;                         /* Input trắng */
+  --border: 210 30% 90%;                      /* Border xám xanh nhạt */
+  --muted: 210 40% 96%;
+  --muted-foreground: 220 20% 40%;
+  --success: 142 70% 45%;
 }
 
 .dark {
-  /* CHẾ ĐỘ TỐI (Dark Mode) */
-  --background: 222 47% 4%;     /* Nền đen sâu */
-  --foreground: 210 40% 98%;    /* Chữ trắng Slate */
+  /* Dark Mode - Chuyên nghiệp, dễ nhìn */
+  --background: 220 70% 6%;                   /* Nền xanh đậm chuyên nghiệp */
+  --foreground: 210 40% 98%;                  /* Chữ trắng dễ đọc */
   
-  --card: 222 47% 11%;          /* Card Navy đậm (như ảnh bạn gửi) */
+  --card: 220 60% 10%;                        /* Card xanh đậm */
+  --card-secondary: 220 60% 12%;
+  --card-foreground: 210 40% 98%;
   
-  --primary: 142 72% 50%;       /* Xanh lá (tăng độ sáng một chút để nổi trên nền tối) */
-  --accent: 217 91% 65%;        /* Xanh dương sáng hơn */
+  --primary: 210 100% 45%;                    /* Xanh dương sáng hơn */
+  --primary-foreground: 0 0% 100%;
+  --accent: 90 65% 50%;                       /* Xanh lá sáng hơn */
+  --accent-foreground: 0 0% 100%;
 
-  --input: 222 47% 15%;         /* Input tối hơn card một chút */
-  --border: 217 33% 18%;
+  --input: 220 60% 12%;
+  --border: 220 50% 20%;
+  --muted: 220 60% 12%;
+  --muted-foreground: 210 30% 70%;
+  --success: 142 72% 50%;
+}
+
+* {
+  @apply border-border;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* Typography chuyên nghiệp */
+h1, h2, h3, h4, h5, h6 {
+  @apply font-semibold tracking-tight;
+}
+
+/* Form elements chuyên nghiệp */
+input, select, textarea {
+  @apply text-base;
+}
+
+/* Custom scrollbar nhẹ nhàng */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-muted;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-border rounded-full;
+}
+
+/* Thêm vào global.css hoặc file CSS của bạn */
+:root {
+  /* Light mode validation colors */
+  --error-light: 0 84% 60%; /* Red-500 */
+  --error-light-foreground: 0 0% 98%; /* Light text for error */
+  --error-light-bg: 0 93% 94%; /* Red-50 */
+}
+
+.dark {
+  /* Dark mode validation colors - tối hơn để dễ nhìn */
+  --error-dark: 0 84% 50%; /* Red-600 - sáng hơn trong dark mode */
+  --error-dark-foreground: 0 0% 98%; /* White text */
+  --error-dark-bg: 0 0% 15%; /* Dark gray background */
+}
+
+/* Custom classes cho validation */
+.error-input {
+  border-color: hsl(var(--error-light)) !important;
+  background-color: hsl(var(--error-light-bg)) !important;
+  color: hsl(var(--error-dark-foreground)) !important;
+}
+
+.dark .error-input {
+  border-color: hsl(var(--error-dark)) !important;
+  background-color: hsl(var(--error-dark-bg)) !important;
+  color: hsl(var(--error-dark-foreground)) !important;
+}
+
+.error-text {
+  color: hsl(var(--error-light)) !important;
+}
+
+.dark .error-text {
+  color: hsl(var(--error-dark)) !important;
 }

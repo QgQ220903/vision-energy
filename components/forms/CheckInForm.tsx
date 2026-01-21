@@ -1,78 +1,219 @@
+// components/forms/CheckInForm.tsx - Sửa validation CSS cho dark mode
 "use client";
 import { useState } from "react";
-import { Zap, ChevronRight, User, Phone } from "lucide-react";
+import { Car, User, Phone, CheckCircle, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { translations } from "@/constants/translations";
 
 export default function CheckInForm({ lang }: { lang: string }) {
-  const [isNew, setIsNew] = useState(false);
+  const [isNewCustomer, setIsNewCustomer] = useState(false);
+  const [formData, setFormData] = useState({
+    plate: "",
+    name: "",
+    phone: ""
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const t = translations[lang as keyof typeof translations];
 
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!formData.plate.trim()) {
+      newErrors.plate = t.pleaseEnterPlate;
+    }
+    
+    if (isNewCustomer) {
+      if (!formData.name.trim()) {
+        newErrors.name = t.pleaseEnterName;
+      }
+      if (!formData.phone.trim()) {
+        newErrors.phone = t.pleaseEnterPhone;
+      } else if (!/^\d{10,11}$/.test(formData.phone.replace(/\D/g, ''))) {
+        newErrors.phone = t.invalidPhone;
+      }
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (validateForm()) {
+      // Handle successful submission
+      console.log("Form submitted successfully:", formData);
+      alert(t.registrationSuccess);
+    }
+  };
+
   return (
-    <div className="bg-card rounded-[2.5rem] p-7 shadow-2xl border border-border transition-all duration-300">
-      <h2 className="text-base font-black mb-6 text-foreground flex items-center gap-2 uppercase italic tracking-tighter">
-        <div className="p-1.5 bg-primary rounded-lg shadow-lg shadow-primary/20">
-          <Zap size={16} className="text-primary-foreground fill-current" />
-        </div>
-        {t.checkinTitle}
-      </h2>
-
-      <div className="space-y-5">
-        {/* Input Biển Số Xe */}
-        <div className="group">
-          <label className="text-[10px] font-black uppercase text-muted-foreground group-focus-within:text-primary transition-colors ml-1 tracking-widest">
-            {t.plateLabel}
-          </label>
-          <input 
-            type="text" 
-            placeholder="51H-123.45" 
-            className="w-full p-4 mt-1 rounded-2xl bg-input border-2 border-transparent focus:border-primary focus:bg-card outline-none font-black text-xl uppercase text-foreground transition-all placeholder:text-muted-foreground/30 shadow-inner" 
-          />
-        </div>
-
-        {/* Thông tin khách hàng mới */}
-        <AnimatePresence>
-          {isNew && (
-            <motion.div 
-              initial={{ opacity: 0, height: 0 }} 
-              animate={{ opacity: 1, height: "auto" }} 
-              exit={{ opacity: 0, height: 0 }} 
-              className="space-y-4 overflow-hidden"
-            >
-              <div className="relative">
-                <User size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input 
-                  type="text" 
-                  placeholder={t.nameLabel} 
-                  className="w-full p-4 pl-12 rounded-2xl bg-input text-foreground font-bold outline-none border-2 border-transparent focus:border-accent transition-all" 
-                />
-              </div>
-              <div className="relative">
-                <Phone size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input 
-                  type="tel" 
-                  placeholder={t.phoneLabel} 
-                  className="w-full p-4 pl-12 rounded-2xl bg-input text-foreground font-bold outline-none border-2 border-transparent focus:border-accent transition-all" 
-                />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Nút Confirm - Màu Primary */}
-        <button className="group w-full bg-primary hover:opacity-90 text-primary-foreground font-black py-4 rounded-2xl shadow-xl shadow-primary/20 uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2">
-          {t.btnConfirm}
-          <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
-        </button>
-
-        {/* Toggle Khách cũ/mới - Màu Accent */}
-        <button 
-          onClick={() => setIsNew(!isNew)} 
-          className="w-full text-center text-[10px] font-black text-muted-foreground hover:text-accent uppercase pt-2 transition-colors tracking-tight"
-        >
-          {isNew ? t.isOld : t.isNew}
-        </button>
+    <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+      <div className="mb-6">
+        <h2 className="text-lg font-semibold text-foreground mb-1">{t.checkinTitle}</h2>
+        <p className="text-sm text-muted-foreground">
+          {t.fillInfoToCharge}
+        </p>
       </div>
+
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Plate Number */}
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+            <Car size={14} className="text-primary" />
+            {t.plateLabel}
+            <span className="text-xs text-muted-foreground font-normal ml-1">
+              ({t.examplePlate})
+            </span>
+          </label>
+          <input
+            type="text"
+            value={formData.plate}
+            onChange={(e) => {
+              setFormData({...formData, plate: e.target.value.toUpperCase()});
+              if (errors.plate) setErrors({...errors, plate: ''});
+            }}
+            placeholder={t.examplePlate}
+            className={`w-full px-3 py-2.5 rounded-lg border focus:outline-none transition-colors ${
+              errors.plate 
+                ? 'error-input focus:ring-2 focus:ring-red-400/50' 
+                : 'border-border bg-input focus:border-primary focus:ring-2 focus:ring-primary/50'
+            }`}
+          />
+          {errors.plate && (
+            <div className="flex items-center gap-1 text-xs error-text">
+              <AlertCircle size={12} />
+              <span>{errors.plate}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Customer Type Selection */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-center gap-4">
+            {/* Existing Member Button */}
+            <button
+              type="button"
+              onClick={() => setIsNewCustomer(false)}
+              className={`flex-1 py-2.5 px-3 rounded-lg border transition-all ${
+                !isNewCustomer 
+                  ? 'border-primary bg-primary/10 text-primary font-semibold' 
+                  : 'border-border bg-input text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              <span className="text-sm">
+                {t.member}
+              </span>
+            </button>
+            
+            {/* New Customer Button */}
+            <button
+              type="button"
+              onClick={() => setIsNewCustomer(true)}
+              className={`flex-1 py-2.5 px-3 rounded-lg border transition-all ${
+                isNewCustomer 
+                  ? 'border-accent bg-accent/10 text-accent font-semibold' 
+                  : 'border-border bg-input text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              <span className="text-sm">
+                {t.newCustomer}
+              </span>
+            </button>
+          </div>
+
+          {/* Status Indicator */}
+          <div className="text-center">
+            <span className="text-xs font-medium text-muted-foreground">
+              {isNewCustomer ? t.isNew : t.isOld}
+            </span>
+          </div>
+
+          <AnimatePresence>
+            {isNewCustomer && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="space-y-3 mt-3 pt-3 border-t border-border"
+              >
+                <p className="text-sm font-medium text-accent">
+                  {t.provideInfoForRegistration}
+                </p>
+                
+                {/* Name Input */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                    <User size={14} className="text-accent" />
+                    {t.nameLabel}
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => {
+                      setFormData({...formData, name: e.target.value});
+                      if (errors.name) setErrors({...errors, name: ''});
+                    }}
+                    placeholder={t.nameLabel}
+                    className={`w-full px-3 py-2.5 rounded-lg border focus:outline-none transition-colors ${
+                      errors.name 
+                        ? 'error-input focus:ring-2 focus:ring-red-400/50' 
+                        : 'border-border bg-input focus:border-accent focus:ring-2 focus:ring-accent/50'
+                    }`}
+                  />
+                  {errors.name && (
+                    <div className="flex items-center gap-1 text-xs error-text">
+                      <AlertCircle size={12} />
+                      <span>{errors.name}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Phone Input */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                    <Phone size={14} className="text-accent" />
+                    {t.phoneLabel}
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => {
+                      setFormData({...formData, phone: e.target.value});
+                      if (errors.phone) setErrors({...errors, phone: ''});
+                    }}
+                    placeholder={t.phoneLabel}
+                    className={`w-full px-3 py-2.5 rounded-lg border focus:outline-none transition-colors ${
+                      errors.phone 
+                        ? 'error-input focus:ring-2 focus:ring-red-400/50' 
+                        : 'border-border bg-input focus:border-accent focus:ring-2 focus:ring-accent/50'
+                    }`}
+                  />
+                  {errors.phone && (
+                    <div className="flex items-center gap-1 text-xs error-text">
+                      <AlertCircle size={12} />
+                      <span>{errors.phone}</span>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Submit Button */}
+        <button
+          type="submit"
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+        >
+          <CheckCircle size={18} />
+          <span>{t.btnConfirm}</span>
+        </button>
+
+        {/* Help Text */}
+        <p className="text-xs text-muted-foreground text-center pt-2">
+          {t.infoSecured}
+        </p>
+      </form>
     </div>
   );
 }
