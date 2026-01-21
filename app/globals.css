@@ -1,51 +1,41 @@
 @import "tailwindcss";
 
-@plugin "tailwindcss-animate"; /* Dùng plugin chuẩn của Shadcn thay vì tw-animate */
-
 @theme {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
+  /* Gán các biến CSS vào hệ thống màu của Tailwind */
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-primary: hsl(var(--primary));
+  --color-accent: hsl(var(--accent));
+  --color-input: hsl(var(--input));
+  --color-border: hsl(var(--border));
 }
 
 :root {
-  --background: 210 40% 98%;
-  --foreground: 222 47% 11%;
-  --card: 0 0% 100%;
+  /* CHẾ ĐỘ SÁNG (Light Mode) */
+  --background: 210 40% 98%;    /* Nền xám xanh rất nhạt */
+  --foreground: 222 47% 11%;    /* Chữ đen Navy */
+  
+  --card: 0 0% 100%;            /* Card trắng tinh */
   --card-foreground: 222 47% 11%;
-  --primary: 142 70% 45%; 
-  --primary-foreground: 210 40% 98%;
-  --accent: 217 91% 60%; 
-  --accent-foreground: 210 40% 98%;
+  
+  --primary: 142 70% 45%;       /* XANH LÁ của bạn */
+  --accent: 217 91% 60%;        /* XANH DƯƠNG của bạn */
+
+  --input: 210 40% 95%;         /* Nền Input nhạt hơn card */
   --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --ring: 142 70% 45%;
 }
 
 .dark {
-  --background: 222 47% 4%;
-  --foreground: 210 40% 98%;
-  --card: 222 47% 11%;
-  --card-foreground: 210 40% 98%;
-  --primary: 142 70% 50%;
-  --accent: 217 91% 60%;
-  --border: 217 33% 17%;
-  --input: 217 33% 17%;
-}
+  /* CHẾ ĐỘ TỐI (Dark Mode) */
+  --background: 222 47% 4%;     /* Nền đen sâu */
+  --foreground: 210 40% 98%;    /* Chữ trắng Slate */
+  
+  --card: 222 47% 11%;          /* Card Navy đậm (như ảnh bạn gửi) */
+  
+  --primary: 142 72% 50%;       /* Xanh lá (tăng độ sáng một chút để nổi trên nền tối) */
+  --accent: 217 91% 65%;        /* Xanh dương sáng hơn */
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground transition-colors duration-300;
-  }
+  --input: 222 47% 15%;         /* Input tối hơn card một chút */
+  --border: 217 33% 18%;
 }
