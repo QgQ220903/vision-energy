@@ -1,219 +1,390 @@
-// components/forms/CheckInForm.tsx - Sửa validation CSS cho dark mode
+// components/forms/CheckInForm.tsx - Phiên bản chuyên nghiệp, hiện đại
 "use client";
 import { useState } from "react";
-import { Car, User, Phone, CheckCircle, AlertCircle } from "lucide-react";
+import { Car, User, Phone, CheckCircle, AlertCircle, Loader2, X, MessageCircle, Trophy, Zap, ChevronRight, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { translations } from "@/constants/translations";
+import { supabase } from "@/lib/supabase";
+import { processCheckIn } from "@/services/checkinService";
 
 export default function CheckInForm({ lang }: { lang: string }) {
   const [isNewCustomer, setIsNewCustomer] = useState(false);
-  const [formData, setFormData] = useState({
-    plate: "",
-    name: "",
-    phone: ""
-  });
+  const [loading, setLoading] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [stats, setStats] = useState({ monthly: 0, total: 0 });
+  const [formData, setFormData] = useState({ plate: "", name: "", phone: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const t = translations[lang as keyof typeof translations];
 
+  // --- 1. TỰ ĐỘNG ĐỊNH DẠNG (INPUT MASKING) ---
+  const handlePlateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (val.length > 3) {
+      val = val.slice(0, 3) + "-" + val.slice(3, 8);
+    }
+    setFormData({ ...formData, plate: val });
+    if (errors.plate) setErrors({ ...errors, plate: "" });
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value.replace(/\D/g, "");
+    if (val.length > 7) {
+      val = `${val.slice(0, 4)} ${val.slice(4, 7)} ${val.slice(7, 10)}`;
+    } else if (val.length > 4) {
+      val = `${val.slice(0, 4)} ${val.slice(4, 7)}`;
+    }
+    setFormData({ ...formData, phone: val });
+    if (errors.phone) setErrors({ ...errors, phone: "" });
+  };
+
+  // --- 2. VALIDATION ---
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+    const plateClean = formData.plate.replace("-", "");
     
-    if (!formData.plate.trim()) {
-      newErrors.plate = t.pleaseEnterPlate;
+    if (!plateClean || plateClean.length < 5) {
+      newErrors.plate = "Vui lòng nhập biển số hợp lệ";
     }
-    
+
     if (isNewCustomer) {
-      if (!formData.name.trim()) {
-        newErrors.name = t.pleaseEnterName;
+      if (!formData.name.trim() || formData.name.trim().split(/\s+/).length < 2) {
+        newErrors.name = "Vui lòng nhập họ và tên";
       }
-      if (!formData.phone.trim()) {
-        newErrors.phone = t.pleaseEnterPhone;
-      } else if (!/^\d{10,11}$/.test(formData.phone.replace(/\D/g, ''))) {
-        newErrors.phone = t.invalidPhone;
+      const phoneClean = formData.phone.replace(/\s/g, "");
+      if (!phoneClean || phoneClean.length < 10) {
+        newErrors.phone = "Số điện thoại không hợp lệ";
       }
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // --- 3. XỬ LÝ SUBMIT ---
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateForm()) {
-      // Handle successful submission
-      console.log("Form submitted successfully:", formData);
-      alert(t.registrationSuccess);
+    if (!validateForm()) return;
+
+    setLoading(true);
+    try {
+      const cleanPlate = formData.plate.replace("-", "");
+      const cleanPhone = formData.phone.replace(/\s/g, "");
+
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('license_plate')
+        .eq('license_plate', cleanPlate)
+        .single();
+
+      if (!customer && !isNewCustomer) {
+        alert("Thông tin xe chưa có trên hệ thống. Vui lòng đăng ký khách mới.");
+        setIsNewCustomer(true);
+        setLoading(false);
+        return;
+      }
+
+      const result = await processCheckIn(
+        cleanPlate,
+        isNewCustomer ? formData.name.trim() : undefined,
+        isNewCustomer ? cleanPhone : undefined
+      );
+
+      setStats({
+        monthly: result.monthlyCount,
+        total: result.totalCount
+      });
+
+      setShowSuccess(true);
+      setFormData({ plate: "", name: "", phone: "" });
+      setErrors({});
+    } catch (error: any) {
+      alert("Lỗi: " + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold text-foreground mb-1">{t.checkinTitle}</h2>
-        <p className="text-sm text-muted-foreground">
-          {t.fillInfoToCharge}
-        </p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Plate Number */}
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
-            <Car size={14} className="text-primary" />
-            {t.plateLabel}
-            <span className="text-xs text-muted-foreground font-normal ml-1">
-              ({t.examplePlate})
-            </span>
-          </label>
-          <input
-            type="text"
-            value={formData.plate}
-            onChange={(e) => {
-              setFormData({...formData, plate: e.target.value.toUpperCase()});
-              if (errors.plate) setErrors({...errors, plate: ''});
-            }}
-            placeholder={t.examplePlate}
-            className={`w-full px-3 py-2.5 rounded-lg border focus:outline-none transition-colors ${
-              errors.plate 
-                ? 'error-input focus:ring-2 focus:ring-red-400/50' 
-                : 'border-border bg-input focus:border-primary focus:ring-2 focus:ring-primary/50'
-            }`}
-          />
-          {errors.plate && (
-            <div className="flex items-center gap-1 text-xs error-text">
-              <AlertCircle size={12} />
-              <span>{errors.plate}</span>
+    <div className="relative w-full max-w-md mx-auto">
+      {/* FORM CONTAINER */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-3xl p-8 shadow-2xl shadow-primary/5"
+      >
+        {/* HEADER */}
+        <div className="flex items-start justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <div className="w-14 h-14 bg-gradient-to-br from-primary to-accent rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
+                <Zap size={28} className="text-white" />
+              </div>
+              <div className="absolute -top-1 -right-1 w-5 h-5 bg-white rounded-full border-2 border-primary flex items-center justify-center">
+                <Sparkles size={10} className="text-primary" />
+              </div>
             </div>
-          )}
+            <div>
+              <h2 className="text-2xl font-bold text-foreground tracking-tight">
+                {t.checkinTitle}
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                {t.fillInfoToCharge}
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Customer Type Selection */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-center gap-4">
-            {/* Existing Member Button */}
-            <button
-              type="button"
-              onClick={() => setIsNewCustomer(false)}
-              className={`flex-1 py-2.5 px-3 rounded-lg border transition-all ${
-                !isNewCustomer 
-                  ? 'border-primary bg-primary/10 text-primary font-semibold' 
-                  : 'border-border bg-input text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              <span className="text-sm">
-                {t.member}
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {/* PLATE INPUT */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-semibold text-foreground/90 flex items-center gap-2">
+                <Car size={18} className="text-primary" />
+                {t.plateLabel}
+              </label>
+              <span className="text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-1 rounded-full">
+                {t.examplePlate}
               </span>
-            </button>
+            </div>
+            <div className="relative">
+              <input
+                type="text"
+                value={formData.plate}
+                onChange={handlePlateChange}
+                placeholder="51H-123.45"
+                className={`w-full px-6 py-4 text-lg rounded-xl border-2 font-medium tracking-wide transition-all duration-200 focus:outline-none focus:ring-4 ${
+                  errors.plate 
+                    ? 'border-red-400 bg-red-50/50 focus:border-red-400 focus:ring-red-400/20' 
+                    : 'border-border/70 bg-background/50 focus:border-primary focus:ring-primary/20'
+                }`}
+              />
+              {formData.plate && !errors.plate && (
+                <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                  <CheckCircle size={20} className="text-green-500" />
+                </div>
+              )}
+            </div>
+            {errors.plate && (
+              <div className="flex items-center gap-2 text-sm text-red-500">
+                <AlertCircle size={14} />
+                <span className="font-medium">{errors.plate}</span>
+              </div>
+            )}
+          </div>
+
+          {/* CUSTOMER TYPE SELECTOR */}
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <motion.button
+                type="button"
+                onClick={() => setIsNewCustomer(false)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`p-4 rounded-xl border-2 transition-all duration-200 ${
+                  !isNewCustomer 
+                    ? 'border-primary bg-primary/5 text-primary shadow-sm' 
+                    : 'border-border bg-card hover:bg-muted/30 text-muted-foreground'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <div className={`w-3 h-3 rounded-full ${!isNewCustomer ? 'bg-primary' : 'bg-border'}`} />
+                  <span className="font-semibold text-sm">{t.member}</span>
+                </div>
+              </motion.button>
+              
+              <motion.button
+                type="button"
+                onClick={() => setIsNewCustomer(true)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`p-4 rounded-xl border-2 transition-all duration-200 ${
+                  isNewCustomer 
+                    ? 'border-accent bg-accent/5 text-accent shadow-sm' 
+                    : 'border-border bg-card hover:bg-muted/30 text-muted-foreground'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <div className={`w-3 h-3 rounded-full ${isNewCustomer ? 'bg-accent' : 'bg-border'}`} />
+                  <span className="font-semibold text-sm">{t.newCustomer}</span>
+                </div>
+              </motion.button>
+            </div>
             
-            {/* New Customer Button */}
-            <button
-              type="button"
-              onClick={() => setIsNewCustomer(true)}
-              className={`flex-1 py-2.5 px-3 rounded-lg border transition-all ${
-                isNewCustomer 
-                  ? 'border-accent bg-accent/10 text-accent font-semibold' 
-                  : 'border-border bg-input text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              <span className="text-sm">
-                {t.newCustomer}
+            <div className="text-center">
+              <span className="text-xs font-medium text-muted-foreground">
+                {isNewCustomer ? t.isNew : t.isOld}
               </span>
-            </button>
+            </div>
           </div>
 
-          {/* Status Indicator */}
-          <div className="text-center">
-            <span className="text-xs font-medium text-muted-foreground">
-              {isNewCustomer ? t.isNew : t.isOld}
-            </span>
-          </div>
-
+          {/* NEW CUSTOMER FORM */}
           <AnimatePresence>
             {isNewCustomer && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
-                className="space-y-3 mt-3 pt-3 border-t border-border"
+                className="space-y-6 pt-4 border-t border-border/50"
               >
-                <p className="text-sm font-medium text-accent">
-                  {t.provideInfoForRegistration}
-                </p>
-                
-                {/* Name Input */}
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
-                    <User size={14} className="text-accent" />
-                    {t.nameLabel}
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => {
-                      setFormData({...formData, name: e.target.value});
-                      if (errors.name) setErrors({...errors, name: ''});
-                    }}
-                    placeholder={t.nameLabel}
-                    className={`w-full px-3 py-2.5 rounded-lg border focus:outline-none transition-colors ${
-                      errors.name 
-                        ? 'error-input focus:ring-2 focus:ring-red-400/50' 
-                        : 'border-border bg-input focus:border-accent focus:ring-2 focus:ring-accent/50'
-                    }`}
-                  />
-                  {errors.name && (
-                    <div className="flex items-center gap-1 text-xs error-text">
-                      <AlertCircle size={12} />
-                      <span>{errors.name}</span>
-                    </div>
-                  )}
-                </div>
+                <div className="space-y-4">
+                  <div className="space-y-3">
+                    <label className="text-sm font-semibold text-foreground/90 flex items-center gap-2">
+                      <User size={18} className="text-accent" />
+                      {t.nameLabel}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({...formData, name: e.target.value.replace(/[0-9]/g, "")})}
+                      placeholder={t.nameLabel}
+                      className={`w-full px-6 py-4 rounded-xl border-2 bg-background/50 transition-all duration-200 focus:outline-none focus:ring-4 ${
+                        errors.name 
+                          ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' 
+                          : 'border-border/70 focus:border-accent focus:ring-accent/20'
+                      }`}
+                    />
+                    {errors.name && (
+                      <div className="flex items-center gap-2 text-sm text-red-500">
+                        <AlertCircle size={14} />
+                        <span className="font-medium">{errors.name}</span>
+                      </div>
+                    )}
+                  </div>
 
-                {/* Phone Input */}
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
-                    <Phone size={14} className="text-accent" />
-                    {t.phoneLabel}
-                  </label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => {
-                      setFormData({...formData, phone: e.target.value});
-                      if (errors.phone) setErrors({...errors, phone: ''});
-                    }}
-                    placeholder={t.phoneLabel}
-                    className={`w-full px-3 py-2.5 rounded-lg border focus:outline-none transition-colors ${
-                      errors.phone 
-                        ? 'error-input focus:ring-2 focus:ring-red-400/50' 
-                        : 'border-border bg-input focus:border-accent focus:ring-2 focus:ring-accent/50'
-                    }`}
-                  />
-                  {errors.phone && (
-                    <div className="flex items-center gap-1 text-xs error-text">
-                      <AlertCircle size={12} />
-                      <span>{errors.phone}</span>
-                    </div>
-                  )}
+                  <div className="space-y-3">
+                    <label className="text-sm font-semibold text-foreground/90 flex items-center gap-2">
+                      <Phone size={18} className="text-accent" />
+                      {t.phoneLabel}
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.phone}
+                      onChange={handlePhoneChange}
+                      placeholder={t.phoneLabel}
+                      className={`w-full px-6 py-4 rounded-xl border-2 bg-background/50 transition-all duration-200 focus:outline-none focus:ring-4 ${
+                        errors.phone 
+                          ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' 
+                          : 'border-border/70 focus:border-accent focus:ring-accent/20'
+                      }`}
+                    />
+                    {errors.phone && (
+                      <div className="flex items-center gap-2 text-sm text-red-500">
+                        <AlertCircle size={14} />
+                        <span className="font-medium">{errors.phone}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
 
-        {/* Submit Button */}
-        <button
-          type="submit"
-          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
-        >
-          <CheckCircle size={18} />
-          <span>{t.btnConfirm}</span>
-        </button>
+          {/* SUBMIT BUTTON */}
+          <motion.button
+            type="submit"
+            disabled={loading}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="w-full bg-gradient-to-r from-primary to-primary/90 hover:from-primary hover:to-primary/80 text-primary-foreground font-semibold py-5 rounded-xl shadow-lg shadow-primary/25 transition-all duration-200 flex items-center justify-center gap-3 group relative overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+            {loading ? (
+              <Loader2 size={24} className="animate-spin" />
+            ) : (
+              <>
+                <CheckCircle size={24} />
+                <span className="text-lg font-semibold tracking-wide">{t.btnConfirm}</span>
+                <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
+              </>
+            )}
+          </motion.button>
 
-        {/* Help Text */}
-        <p className="text-xs text-muted-foreground text-center pt-2">
-          {t.infoSecured}
-        </p>
-      </form>
+          {/* SECURITY NOTE */}
+          <div className="text-center pt-4">
+            <p className="text-xs font-medium text-muted-foreground/70">
+              {t.infoSecured}
+            </p>
+          </div>
+        </form>
+      </motion.div>
+
+      {/* SUCCESS POPUP */}
+      <AnimatePresence>
+        {showSuccess && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/95 backdrop-blur-md"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-card border border-border/50 rounded-3xl p-8 max-w-sm w-full shadow-2xl"
+            >
+              <div className="flex justify-between items-start mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center">
+                    <Zap size={24} className="text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-foreground">Check-in thành công!</h3>
+                    <p className="text-sm text-muted-foreground">Thông tin đã được lưu trữ</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowSuccess(false)}
+                  className="p-2 hover:bg-muted rounded-lg transition-colors"
+                >
+                  <X size={20} className="text-muted-foreground" />
+                </button>
+              </div>
+
+              {/* STATS */}
+              <div className="grid grid-cols-2 gap-4 mb-8">
+                <div className="bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 rounded-2xl p-5">
+                  <p className="text-xs font-semibold text-muted-foreground mb-2">Tháng này</p>
+                  <p className="text-3xl font-bold text-primary">{stats.monthly}</p>
+                  <p className="text-xs text-muted-foreground mt-1">lượt sạc</p>
+                </div>
+                <div className="bg-gradient-to-br from-accent/5 to-accent/10 border border-accent/20 rounded-2xl p-5">
+                  <p className="text-xs font-semibold text-muted-foreground mb-2">Tổng cộng</p>
+                  <p className="text-3xl font-bold text-accent">{stats.total}</p>
+                  <p className="text-xs text-muted-foreground mt-1">lượt sạc</p>
+                </div>
+              </div>
+
+              {/* NEXT STEPS */}
+              <div className="space-y-4">
+                <div className="bg-muted/30 rounded-xl p-4">
+                  <p className="text-sm font-medium text-foreground mb-2">
+                    <Trophy size={16} className="inline mr-2 text-yellow-500" />
+                    Bước tiếp theo
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Vui lòng cắm súng sạc để bắt đầu quá trình sạc
+                  </p>
+                </div>
+
+                {/* ZALO BUTTON */}
+                <a
+                  href="https://zalo.me/g/isscys844"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-3 shadow-lg shadow-blue-500/30 transition-all hover:scale-[1.02]"
+                >
+                  <MessageCircle size={20} />
+                  <span>Tham gia nhóm Zalo hỗ trợ</span>
+                </a>
+
+                <p className="text-xs text-center text-muted-foreground/70 pt-2">
+                  Nhận thông báo quà tặng & hỗ trợ kỹ thuật 24/7
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
