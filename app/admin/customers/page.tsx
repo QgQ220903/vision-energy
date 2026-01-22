@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { customerService } from "@/services/customerService";
 import { 
   Search, UserCircle, Phone, Car, ChevronDown, 
-  Trophy, History, Star, RefreshCw
+  Trophy, History, Star, RefreshCw,
+  Mail, Calendar, Award, Filter
 } from "lucide-react";
 
 export default function CustomersPage() {
@@ -52,47 +53,94 @@ export default function CustomersPage() {
     }
   });
 
+  // Tính toán stats
+  const vipCount = customers.filter(c => (c.total_sessions || 0) >= 10).length;
+  const activeCustomers = customers.filter(c => (c.total_sessions || 0) > 0).length;
+
   return (
-    <div className="space-y-6 animate-in">
-      {/* HEADER */}
+    <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Danh bạ khách hàng</h2>
-          <p className="text-muted-foreground text-sm">Quản lý và phân loại khách hàng sử dụng trạm</p>
+          <h1 className="text-2xl font-bold text-foreground">Khách hàng</h1>
+          <p className="text-muted-foreground text-sm mt-1">Quản lý thông tin khách hàng sử dụng trạm sạc</p>
         </div>
         
         <div className="flex items-center gap-3">
-          <div className="bg-card px-4 py-2 rounded-lg border border-border flex items-center gap-3">
-            <div className="flex flex-col items-end">
-              <span className="text-xs text-muted-foreground">Tổng cộng</span>
-              <span className="text-lg font-bold text-primary">{customers.length} khách</span>
+          <div className="admin-card flex items-center gap-4">
+            <div className="text-right">
+              <div className="text-xs text-muted-foreground">Tổng khách hàng</div>
+              <div className="text-xl font-bold text-foreground">{customers.length}</div>
             </div>
-            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-              <UserCircle size={20} />
+            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+              <UserCircle size={20} className="text-primary" />
             </div>
           </div>
+          
           <button 
             onClick={fetchCustomers}
-            className="p-3 bg-card border border-border rounded-lg hover:bg-secondary/10 transition-colors"
+            className={`p-3 bg-card border border-border rounded-lg hover:bg-muted transition-colors ${loading ? 'animate-spin' : ''}`}
             title="Refresh"
+            disabled={loading}
           >
-            <RefreshCw size={18} className={loading ? "animate-spin text-primary" : "text-muted-foreground"} />
+            <RefreshCw size={18} className="text-foreground" />
           </button>
         </div>
       </div>
 
-      {/* SEARCH & FILTER BAR */}
-      <div className="bg-card p-6 rounded-2xl border border-border">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="admin-card">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-primary/10 rounded-lg">
+              <UserCircle className="text-primary" size={20} />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Khách hàng tích cực</p>
+              <p className="text-2xl font-bold text-foreground">{activeCustomers}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="admin-card">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-accent/10 rounded-lg">
+              <Award className="text-accent" size={20} />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Thành viên VIP</p>
+              <p className="text-2xl font-bold text-foreground">{vipCount}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="admin-card">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-green-500/10 rounded-lg">
+              <History className="text-green-500" size={20} />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Tổng lượt sạc</p>
+              <p className="text-2xl font-bold text-foreground">
+                {customers.reduce((sum, c) => sum + (c.total_sessions || 0), 0)}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Search & Filter */}
+      <div className="admin-card">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           {/* Search Input */}
           <div className="lg:col-span-3">
-            <label className="text-xs font-medium text-muted-foreground mb-2 block">Tìm kiếm</label>
+            <label className="text-sm font-medium text-foreground mb-2 block">Tìm kiếm khách hàng</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
               <input 
                 type="text" 
-                placeholder="Tìm tên, biển số hoặc số điện thoại..." 
-                className="w-full pl-10 pr-4 py-2.5 bg-secondary/10 border border-input rounded-lg text-foreground outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all hover:border-primary/50 dark:bg-secondary/10 dark:border-border/80"
+                placeholder="Tìm theo tên, biển số, số điện thoại..." 
+                className="admin-input pl-10"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -101,10 +149,10 @@ export default function CustomersPage() {
 
           {/* Sort Select */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-2 block">Sắp xếp theo</label>
+            <label className="text-sm font-medium text-foreground mb-2 block">Sắp xếp theo</label>
             <div className="relative">
               <select 
-                className="appearance-none w-full bg-card border border-input rounded-lg pl-4 pr-10 py-2.5 text-sm font-medium text-foreground outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all cursor-pointer hover:border-primary/50 dark:bg-secondary/10 dark:border-border/80"
+                className="admin-select pl-4 pr-10 appearance-none"
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
               >
@@ -121,87 +169,109 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      {/* CUSTOMERS GRID */}
+      {/* Customers Grid/Table */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="h-64 bg-card border border-border rounded-2xl animate-pulse"></div>
-          ))}
-        </div>
-      ) : sortedCustomers.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {sortedCustomers.map(customer => (
-            <div 
-              key={customer.id || Math.random()} 
-              className="bg-card p-5 rounded-2xl border border-border hover:border-primary/30 hover:shadow-sm transition-all group"
-            >
-              {/* VIP Badge */}
-              {(customer.total_sessions || 0) >= 10 && (
-                <div className="absolute top-4 right-4 bg-accent/10 text-accent p-2 rounded-lg border border-accent/20">
-                  <Trophy size={16} />
-                </div>
-              )}
-
-              <div className="flex flex-col h-full">
-                {/* Header Section */}
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                    <UserCircle size={24} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-foreground text-base leading-tight truncate">
-                      {customer.full_name || "Khách vãng lai"}
-                    </h4>
-                    <div className="text-xs text-muted-foreground">
-                      ID: {customer.id ? customer.id.toString().slice(0, 8) : "N/A"}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Details Section */}
-                <div className="space-y-3">
-                  {/* License Plate */}
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-lg border border-border/50 group-hover:border-primary/20 transition-colors">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Car size={16} />
-                      <span className="text-xs font-medium">Biển số</span>
-                    </div>
-                    <span className="font-mono font-bold text-primary text-sm">
-                      {customer.license_plate || "N/A"}
-                    </span>
-                  </div>
-
-                  {/* Phone Number */}
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-lg border border-border/50">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Phone size={16} />
-                      <span className="text-xs font-medium">Liên hệ</span>
-                    </div>
-                    <span className="text-sm font-medium text-foreground">
-                      {customer.phone_number || "---"}
-                    </span>
-                  </div>
-
-                  {/* Total Sessions */}
-                  <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg border border-primary/20 mt-2">
-                    <div className="flex items-center gap-2 text-primary">
-                      <History size={16} />
-                      <span className="text-xs font-medium">Tổng lượt sạc</span>
-                    </div>
-                    <span className="text-lg font-bold text-primary">
-                      {customer.total_sessions || 0}
-                    </span>
-                  </div>
-                </div>
-              </div>
+            <div key={i} className="admin-card h-64 animate-pulse">
+              <div className="h-8 bg-border rounded mb-4"></div>
+              <div className="h-4 bg-border rounded mb-2"></div>
+              <div className="h-4 bg-border rounded mb-2"></div>
+              <div className="h-4 bg-border rounded"></div>
             </div>
           ))}
         </div>
+      ) : sortedCustomers.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {sortedCustomers.map(customer => {
+            const isVIP = (customer.total_sessions || 0) >= 10;
+            
+            return (
+              <div 
+                key={customer.id || Math.random()} 
+                className="admin-card hover:shadow-md transition-shadow relative"
+              >
+                {/* VIP Badge */}
+                {isVIP && (
+                  <div className="absolute top-4 right-4 p-2 bg-accent/10 rounded-lg border border-accent/20">
+                    <Trophy size={16} className="text-accent" />
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  {/* Customer Info */}
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <UserCircle size={24} className="text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-foreground text-base truncate">
+                        {customer.full_name || "Khách vãng lai"}
+                      </h4>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        ID: {customer.id ? customer.id.toString().slice(0, 8) : "N/A"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Details */}
+                  <div className="space-y-3">
+                    {/* License Plate */}
+                    <div className="flex items-center justify-between p-2 bg-muted rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Car size={14} className="text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">Biển số</span>
+                      </div>
+                      <span className="font-mono font-medium text-foreground">
+                        {customer.license_plate || "N/A"}
+                      </span>
+                    </div>
+
+                    {/* Phone */}
+                    <div className="flex items-center justify-between p-2 bg-muted rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Phone size={14} className="text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">Điện thoại</span>
+                      </div>
+                      <span className="text-sm font-medium text-foreground">
+                        {customer.phone_number || "---"}
+                      </span>
+                    </div>
+
+                    {/* Total Sessions */}
+                    <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg border border-primary/10">
+                      <div className="flex items-center gap-2">
+                        <History size={16} className="text-primary" />
+                        <span className="text-sm font-medium text-foreground">Tổng lượt sạc</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-primary">{customer.total_sessions || 0}</div>
+                        {isVIP && (
+                          <div className="text-xs text-accent font-medium">Thành viên VIP</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Registration Date */}
+                  {customer.created_at && (
+                    <div className="pt-3 border-t border-border">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Calendar size={12} />
+                        <span>Đăng ký: {new Date(customer.created_at).toLocaleDateString('vi-VN')}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       ) : (
-        <div className="bg-card p-12 rounded-2xl border border-border text-center">
+        <div className="admin-card text-center py-12">
           <div className="flex flex-col items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-secondary/10 flex items-center justify-center">
-              <Search className="w-8 h-8 text-muted-foreground" />
+            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+              <Search size={24} className="text-muted-foreground" />
             </div>
             <div>
               <h3 className="text-foreground font-medium mb-1">Không tìm thấy khách hàng</h3>
@@ -213,17 +283,30 @@ export default function CustomersPage() {
         </div>
       )}
 
-      {/* FOOTER INFO */}
+      {/* Footer Info */}
       {sortedCustomers.length > 0 && (
-        <div className="bg-card p-4 rounded-lg border border-border">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">
+        <div className="admin-card">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="text-sm text-muted-foreground">
               Hiển thị <span className="font-medium text-foreground">{sortedCustomers.length}</span> trong tổng số{' '}
               <span className="font-medium text-foreground">{customers.length}</span> khách hàng
-            </p>
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-accent/10 text-accent rounded-full text-xs font-medium border border-accent/20">
-              <Star size={12} />
-              <span>Thành viên VIP: {customers.filter(c => (c.total_sessions || 0) >= 10).length}</span>
+            </div>
+            
+            <div className="flex flex-wrap gap-3">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary rounded-full text-sm border border-primary/20">
+                <UserCircle size={14} />
+                <span>Tổng: {customers.length}</span>
+              </div>
+              
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-accent/10 text-accent rounded-full text-sm border border-accent/20">
+                <Star size={14} />
+                <span>VIP: {vipCount}</span>
+              </div>
+              
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 text-green-600 rounded-full text-sm border border-green-500/20">
+                <History size={14} />
+                <span>Hoạt động: {activeCustomers}</span>
+              </div>
             </div>
           </div>
         </div>

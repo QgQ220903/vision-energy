@@ -45,7 +45,7 @@ export const processCheckIn = async (plate: string, name?: string, phone?: strin
     .insert([{ license_plate: plate }]);
   if (sessionError) throw sessionError;
 
-  // 3. Lấy thống kê (Giữ nguyên code cũ của bạn)
+  // 3. Lấy thống kê 
   const { count: totalCount } = await supabase
     .from("charging_sessions")
     .select("*", { count: 'exact', head: true })
