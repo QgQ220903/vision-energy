@@ -1,44 +1,63 @@
 import { supabase } from "@/lib/supabase";
 
+// CẤU HÌNH THỜI GIAN CHẶN (Phút)
+const CHECKIN_INTERVAL = 5; // Đổi thành 120 khi chạy thật
+
 export const processCheckIn = async (plate: string, name?: string, phone?: string) => {
-  // 1. Xử lý thông tin khách hàng (Upsert)
-  // Lưu ý: license_plate là khóa chính nên sẽ tự động cập nhật nếu đã tồn tại
+  // --- BƯỚC 0: KIỂM TRA KHOẢNG CÁCH THỜI GIAN (ANTI-FRAUD) ---
+  const { data: sessions, error: fetchError } = await supabase
+    .from("charging_sessions")
+    .select("start_time")
+    .eq("license_plate", plate)
+    .order("start_time", { ascending: false })
+    .limit(1);
+
+  if (fetchError) {
+    console.error("Lỗi kiểm tra lịch sử sạc:", fetchError.message);
+  }
+
+  // Kiểm tra nếu tìm thấy ít nhất 1 phiên sạc trước đó
+  if (sessions && sessions.length > 0) {
+    const lastSession = sessions[0]; // Lấy phiên sạc gần nhất từ mảng
+    const lastTime = new Date(lastSession.start_time).getTime();
+    const now = new Date().getTime();
+    const diffMinutes = Math.floor((now - lastTime) / (1000 * 60));
+
+    // Nếu thời gian chờ chưa đủ (Cooldown)
+    if (diffMinutes < CHECKIN_INTERVAL) {
+      throw new Error(`COOLDOWN:${CHECKIN_INTERVAL - diffMinutes}`);
+    }
+  }
+
+  // 1. Xử lý thông tin khách hàng 
   if (name || phone) {
     const { error: customerError } = await supabase.from("customers").upsert({
       license_plate: plate,
       full_name: name,
       phone_number: phone,
-      // created_at sẽ tự động lấy now() theo schema nếu là dòng mới
     }, { onConflict: 'license_plate' });
-
     if (customerError) throw customerError;
   }
 
   // 2. Ghi nhận lượt sạc mới
-  // Schema của bạn: mặc định start_time = now(), status = 'completed', station_id = 'station_01'
   const { error: sessionError } = await supabase
     .from("charging_sessions")
-    .insert([{ license_plate: plate }]); 
-
+    .insert([{ license_plate: plate }]);
   if (sessionError) throw sessionError;
 
-  // 3. Lấy thống kê (Sửa lại tên cột thành start_time)
-  
-  // Tổng lượt sạc từ trước tới nay
+  // 3. Lấy thống kê (Giữ nguyên code cũ của bạn)
   const { count: totalCount } = await supabase
     .from("charging_sessions")
     .select("*", { count: 'exact', head: true })
     .eq("license_plate", plate);
 
-  // Lượt sạc trong tháng hiện tại
   const date = new Date();
   const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1).toISOString();
-
   const { count: monthlyCount } = await supabase
     .from("charging_sessions")
     .select("*", { count: 'exact', head: true })
     .eq("license_plate", plate)
-    .gte("start_time", firstDayOfMonth); // SỬA TẠI ĐÂY: created_at -> start_time
+    .gte("start_time", firstDayOfMonth);
 
   return {
     monthlyCount: monthlyCount || 0,

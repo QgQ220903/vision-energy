@@ -15,6 +15,8 @@ export default function CheckInForm({ lang }: { lang: string }) {
   const [stats, setStats] = useState({ monthly: 0, total: 0 });
   const [formData, setFormData] = useState({ plate: "", name: "", phone: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showCooldown, setShowCooldown] = useState(false);
+  const [remainingTime, setRemainingTime] = useState(0);
   const t = translations[lang as keyof typeof translations];
 
   // --- 1. TỰ ĐỘNG ĐỊNH DẠNG (INPUT MASKING) ---
@@ -43,7 +45,7 @@ export default function CheckInForm({ lang }: { lang: string }) {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     const plateClean = formData.plate.replace("-", "");
-    
+
     if (!plateClean || plateClean.length < 5) {
       newErrors.plate = "Vui lòng nhập biển số hợp lệ";
     }
@@ -62,7 +64,7 @@ export default function CheckInForm({ lang }: { lang: string }) {
     return Object.keys(newErrors).length === 0;
   };
 
-  // --- 3. XỬ LÝ SUBMIT ---
+  // --- 3. XỬ LÝ SUBMIT (Đã cập nhật logic Chặn 2 tiếng) ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -72,25 +74,29 @@ export default function CheckInForm({ lang }: { lang: string }) {
       const cleanPlate = formData.plate.replace("-", "");
       const cleanPhone = formData.phone.replace(/\s/g, "");
 
-      const { data: customer } = await supabase
-        .from('customers')
-        .select('license_plate')
-        .eq('license_plate', cleanPlate)
-        .single();
+      // 1. Kiểm tra xem khách hàng đã tồn tại chưa (Nếu không phải đang ở mode đăng ký mới)
+      if (!isNewCustomer) {
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('license_plate')
+          .eq('license_plate', cleanPlate)
+          .single();
 
-      if (!customer && !isNewCustomer) {
-        // Hiển thị modal thay vì alert
-        setShowCustomerNotFound(true);
-        setLoading(false);
-        return;
+        if (!customer) {
+          setShowCustomerNotFound(true);
+          setLoading(false);
+          return;
+        }
       }
 
+      // 2. Gọi Service xử lý Check-in (Hàm này sẽ check cả logic 120 phút)
       const result = await processCheckIn(
         cleanPlate,
         isNewCustomer ? formData.name.trim() : undefined,
         isNewCustomer ? cleanPhone : undefined
       );
 
+      // 3. Nếu thành công: Cập nhật thống kê và hiện Modal xanh
       setStats({
         monthly: result.monthlyCount,
         total: result.totalCount
@@ -99,8 +105,19 @@ export default function CheckInForm({ lang }: { lang: string }) {
       setShowSuccess(true);
       setFormData({ plate: "", name: "", phone: "" });
       setErrors({});
+      setIsNewCustomer(false); // Reset về mode khách cũ cho lần sau
+
     } catch (error: any) {
-      alert("Lỗi: " + error.message);
+      // 4. XỬ LÝ LỖI CHẶN THỜI GIAN (COOLDOWN)
+      if (error.message?.startsWith("COOLDOWN:")) {
+        const minutes = error.message.split(":")[1];
+        setRemainingTime(parseInt(minutes));
+        setShowCooldown(true);
+      } else {
+        // Các lỗi hệ thống khác
+        console.error("Check-in error:", error);
+        alert("Lỗi hệ thống: " + (error.message || "Vui lòng thử lại sau"));
+      }
     } finally {
       setLoading(false);
     }
@@ -119,7 +136,7 @@ export default function CheckInForm({ lang }: { lang: string }) {
   return (
     <div className="relative w-full max-w-md mx-auto">
       {/* FORM CONTAINER */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-3xl p-8 shadow-2xl shadow-primary/5"
@@ -164,11 +181,10 @@ export default function CheckInForm({ lang }: { lang: string }) {
                 value={formData.plate}
                 onChange={handlePlateChange}
                 placeholder="51H-123.45"
-                className={`w-full px-6 py-4 text-lg rounded-xl border-2 font-medium tracking-wide transition-all duration-200 focus:outline-none focus:ring-4 ${
-                  errors.plate 
-                    ? 'border-red-400 bg-red-50/50 focus:border-red-400 focus:ring-red-400/20' 
-                    : 'border-border/70 bg-background/50 focus:border-primary focus:ring-primary/20'
-                }`}
+                className={`w-full px-6 py-4 text-lg rounded-xl border-2 font-medium tracking-wide transition-all duration-200 focus:outline-none focus:ring-4 ${errors.plate
+                  ? 'border-red-400 bg-red-50/50 focus:border-red-400 focus:ring-red-400/20'
+                  : 'border-border/70 bg-background/50 focus:border-primary focus:ring-primary/20'
+                  }`}
               />
               {formData.plate && !errors.plate && (
                 <div className="absolute right-4 top-1/2 -translate-y-1/2">
@@ -192,28 +208,26 @@ export default function CheckInForm({ lang }: { lang: string }) {
                 onClick={() => setIsNewCustomer(false)}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className={`p-4 rounded-xl border-2 transition-all duration-200 ${
-                  !isNewCustomer 
-                    ? 'border-primary bg-primary/5 text-primary shadow-sm' 
-                    : 'border-border bg-card hover:bg-muted/30 text-muted-foreground'
-                }`}
+                className={`p-4 rounded-xl border-2 transition-all duration-200 ${!isNewCustomer
+                  ? 'border-primary bg-primary/5 text-primary shadow-sm'
+                  : 'border-border bg-card hover:bg-muted/30 text-muted-foreground'
+                  }`}
               >
                 <div className="flex items-center justify-center gap-2">
                   <div className={`w-3 h-3 rounded-full ${!isNewCustomer ? 'bg-primary' : 'bg-border'}`} />
                   <span className="font-semibold text-sm">{t.member}</span>
                 </div>
               </motion.button>
-              
+
               <motion.button
                 type="button"
                 onClick={() => setIsNewCustomer(true)}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className={`p-4 rounded-xl border-2 transition-all duration-200 ${
-                  isNewCustomer 
-                    ? 'border-accent bg-accent/5 text-accent shadow-sm' 
-                    : 'border-border bg-card hover:bg-muted/30 text-muted-foreground'
-                }`}
+                className={`p-4 rounded-xl border-2 transition-all duration-200 ${isNewCustomer
+                  ? 'border-accent bg-accent/5 text-accent shadow-sm'
+                  : 'border-border bg-card hover:bg-muted/30 text-muted-foreground'
+                  }`}
               >
                 <div className="flex items-center justify-center gap-2">
                   <div className={`w-3 h-3 rounded-full ${isNewCustomer ? 'bg-accent' : 'bg-border'}`} />
@@ -221,7 +235,7 @@ export default function CheckInForm({ lang }: { lang: string }) {
                 </div>
               </motion.button>
             </div>
-            
+
             <div className="text-center">
               <span className="text-xs font-medium text-muted-foreground">
                 {isNewCustomer ? t.isNew : t.isOld}
@@ -247,13 +261,12 @@ export default function CheckInForm({ lang }: { lang: string }) {
                     <input
                       type="text"
                       value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value.replace(/[0-9]/g, "")})}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value.replace(/[0-9]/g, "") })}
                       placeholder={t.nameLabel}
-                      className={`w-full px-6 py-4 rounded-xl border-2 bg-background/50 transition-all duration-200 focus:outline-none focus:ring-4 ${
-                        errors.name 
-                          ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' 
-                          : 'border-border/70 focus:border-accent focus:ring-accent/20'
-                      }`}
+                      className={`w-full px-6 py-4 rounded-xl border-2 bg-background/50 transition-all duration-200 focus:outline-none focus:ring-4 ${errors.name
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20'
+                        : 'border-border/70 focus:border-accent focus:ring-accent/20'
+                        }`}
                     />
                     {errors.name && (
                       <div className="flex items-center gap-2 text-sm text-red-500">
@@ -273,11 +286,10 @@ export default function CheckInForm({ lang }: { lang: string }) {
                       value={formData.phone}
                       onChange={handlePhoneChange}
                       placeholder={t.phoneLabel}
-                      className={`w-full px-6 py-4 rounded-xl border-2 bg-background/50 transition-all duration-200 focus:outline-none focus:ring-4 ${
-                        errors.phone 
-                          ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' 
-                          : 'border-border/70 focus:border-accent focus:ring-accent/20'
-                      }`}
+                      className={`w-full px-6 py-4 rounded-xl border-2 bg-background/50 transition-all duration-200 focus:outline-none focus:ring-4 ${errors.phone
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20'
+                        : 'border-border/70 focus:border-accent focus:ring-accent/20'
+                        }`}
                     />
                     {errors.phone && (
                       <div className="flex items-center gap-2 text-sm text-red-500">
@@ -323,13 +335,13 @@ export default function CheckInForm({ lang }: { lang: string }) {
       {/* MODAL: KHÁCH HÀNG KHÔNG TỒN TẠI */}
       <AnimatePresence>
         {showCustomerNotFound && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/95 backdrop-blur-md"
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               className="bg-card border border-border/50 rounded-3xl p-8 max-w-sm w-full shadow-2xl"
@@ -411,13 +423,13 @@ export default function CheckInForm({ lang }: { lang: string }) {
       {/* MODAL: CHECK-IN THÀNH CÔNG */}
       <AnimatePresence>
         {showSuccess && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/95 backdrop-blur-md"
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               className="bg-card border border-border/50 rounded-3xl p-8 max-w-sm w-full shadow-2xl"
@@ -491,10 +503,43 @@ export default function CheckInForm({ lang }: { lang: string }) {
                 </a>
 
                 <p className="text-xs text-center text-muted-foreground/70 pt-2">
-                  {lang === "vi" 
-                    ? "Nhận thông báo quà tặng & hỗ trợ kỹ thuật 24/7" 
+                  {lang === "vi"
+                    ? "Nhận thông báo quà tặng & hỗ trợ kỹ thuật 24/7"
                     : "Receive gift notifications & 24/7 technical support"}
                 </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* MODAL: THÔNG BÁO CHỜ (COOLDOWN) */}
+      <AnimatePresence>
+        {showCooldown && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-background/95 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              className="bg-card border-2 border-red-500/20 rounded-3xl p-8 max-w-sm w-full shadow-2xl"
+            >
+              <div className="text-center">
+                <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <AlertTriangle size={40} className="text-red-600 animate-pulse" />
+                </div>
+                <h3 className="text-2xl font-bold text-foreground mb-2">Thao tác quá nhanh!</h3>
+                <p className="text-muted-foreground mb-6">
+                  Hệ thống ghi nhận xe vừa check-in cách đây ít phút. Vui lòng đợi thêm:
+                </p>
+                <div className="bg-red-50 text-red-700 text-3xl font-black py-4 rounded-2xl mb-8">
+                  {remainingTime} {lang === "vi" ? "PHÚT" : "MINS"}
+                </div>
+                <button
+                  onClick={() => setShowCooldown(false)}
+                  className="w-full bg-foreground text-background font-bold py-4 rounded-xl hover:opacity-90 transition-opacity"
+                >
+                  Đã hiểu
+                </button>
               </div>
             </motion.div>
           </motion.div>
