@@ -25,12 +25,23 @@ sequenceDiagram
         S-->>U: Show "Reward Awarded" Celebration (Confetti)
         U->>S: Mark completion_seen_at
     end
-    S-->>U: Validate token + check if already submitted
+
+    Note over U, S: Reward Portal — Token Validation
+    S-->>U: Validate token
+    alt Already Submitted (processing/completed)
+        S-->>U: Show Re-submission Prompt
+        U->>U: Choose "Update Info" or "Skip"
+        alt Skip
+            U->>U: Navigate to success page
+        end
+    end
+
+    Note over U, S: Identity Verification
     U->>U: Enter license plate + phone for identity check
     S-->>U: Match against customer record or reject
     U->>U: Opens Camera via Website
     U->>U: Resize Image (< 1MB) via lib/imageUtils.ts
-    U->>P: POST /ai/chat/complete (Claude 3 Haiku / GPT-4o-Mini)
+    U->>P: POST /ai/chat/complete (GPT-4o-Mini)
     P-->>U: JSON (Name, ID Number)
     U-->>U: Auto-fill Form & Confirmation + Privacy Consent
     U->>S: Submit Info & Upload to Storage (Timezone +7)
@@ -69,6 +80,7 @@ sequenceDiagram
 - **Unique Constraint**: `(token)` — ensures each portal link is unique.
 - **Backend Check**: Service layer validates status before allowing writes.
 - **Frontend Guard**: Submit button disabled after first click; portal shows "Already Submitted" on re-access.
+- **Re-submission Support**: Users with `processing` or `completed` status see a prompt to update their info or skip.
 - **Optimistic Concurrency**: Status updates use `.eq('status', 'expected_value')` to prevent race conditions.
 
 ### Identity Verification (Before OCR)
@@ -94,6 +106,7 @@ sequenceDiagram
 
 ### Customer Reward Portal (`/app/rewards/[token]`)
 - **Public route** (no login required, protected by unique token).
+- **Re-submission Prompt**: If user already submitted (status `processing` or `completed`), shows a popup with existing info and options to "Update" or "Skip".
 - **Step 1**: Enter plate + phone → identity check.
 - **Step 2**: Camera capture + Puter.js OCR (with manual fallback).
 - **Step 3**: Review auto-filled data + privacy consent checkbox.

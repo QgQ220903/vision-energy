@@ -8,7 +8,7 @@ import {
 import { rewardService } from "@/app/services/rewardService";
 import type { Reward } from "@/lib/types/reward";
 
-type Step = "verify" | "capture" | "review" | "done" | "error";
+type Step = "verify" | "capture" | "review" | "done" | "error" | "already-submitted";
 
 export default function RewardPortalPage() {
   const params = useParams();
@@ -47,6 +47,11 @@ export default function RewardPortalPage() {
         setMessage(result.message);
         setStep("error");
         if (result.reward) setReward(result.reward);
+      } else if (result.alreadySubmitted) {
+        // User already submitted — show re-submission prompt
+        setReward(result.reward);
+        setMessage(result.message);
+        setStep("already-submitted");
       } else {
         setReward(result.reward);
       }
@@ -219,7 +224,7 @@ export default function RewardPortalPage() {
 
       <div className="max-w-md mx-auto px-4 py-6 space-y-6">
         {/* Step Indicator */}
-        {step !== "error" && step !== "done" && (
+        {step !== "error" && step !== "done" && step !== "already-submitted" && (
           <div className="flex items-center justify-center gap-2">
             {[
               { key: "verify", label: "Xác minh" },
@@ -497,6 +502,52 @@ export default function RewardPortalPage() {
                 : "Không thể truy cập"}
             </h2>
             <p className="text-muted-foreground text-sm">{message}</p>
+          </div>
+        )}
+
+        {/* Already Submitted — Re-submission Prompt */}
+        {step === "already-submitted" && (
+          <div className="bg-card border border-border rounded-xl p-8 text-center space-y-5">
+            <div className="w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto">
+              <AlertCircle size={36} className="text-amber-500" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-foreground">
+                {reward?.status === "completed" ? "Bạn đã nhận quà" : "Bạn đã gửi thông tin"}
+              </h2>
+              <p className="text-muted-foreground text-sm mt-2">{message}</p>
+            </div>
+
+            {/* Show existing submission info if available */}
+            {reward?.id_full_name && (
+              <div className="bg-muted rounded-lg p-4 text-left space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Họ tên đã gửi:</span>
+                  <span className="font-medium text-foreground">{reward.id_full_name}</span>
+                </div>
+                {reward.id_number && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Số CCCD đã gửi:</span>
+                    <span className="font-mono font-medium text-foreground">{reward.id_number}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => setStep("verify")}
+                className="w-full py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
+              >
+                Cập nhật lại thông tin
+              </button>
+              <button
+                onClick={() => setStep("done")}
+                className="w-full py-3 bg-muted text-foreground rounded-lg font-medium hover:bg-muted/80 transition-colors"
+              >
+                Để sau, tôi sẽ quay lại sau
+              </button>
+            </div>
           </div>
         )}
 

@@ -4,5 +4,8 @@
 			"path": "."
 		}
 	],
-	"settings": {}
+	"settings": {
+		"sarif-viewer.connectToGithubCodeScanning": "off",
+		"codeQL.githubDatabase.download": "never"
+	}
 }

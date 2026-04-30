@@ -149,10 +149,18 @@ export const rewardService = {
   /**
    * Validate a reward token and return the reward record.
    * Used by the customer portal on page load.
+   *
+   * Returns `alreadySubmitted: true` when the user has already submitted
+   * (status = processing or completed), so the UI can show a re-submission prompt.
    */
   async validateToken(
     token: string
-  ): Promise<{ valid: boolean; reward: Reward | null; message: string }> {
+  ): Promise<{
+    valid: boolean;
+    reward: Reward | null;
+    message: string;
+    alreadySubmitted?: boolean;
+  }> {
     const { data, error } = await supabase
       .from("rewards")
       .select("*")
@@ -163,11 +171,23 @@ export const rewardService = {
       return { valid: false, reward: null, message: "Link không hợp lệ." };
     }
 
+    // Already completed — show re-submission prompt (user may want to update)
     if (data.status === "completed") {
       return {
-        valid: false,
+        valid: true,
         reward: data as Reward,
         message: "Bạn đã nhận quà cho kỳ thưởng này rồi.",
+        alreadySubmitted: true,
+      };
+    }
+
+    // Already submitted (processing) — show re-submission prompt
+    if (data.status === "processing") {
+      return {
+        valid: true,
+        reward: data as Reward,
+        message: "Bạn đã gửi thông tin. Bạn có muốn cập nhật lại không?",
+        alreadySubmitted: true,
       };
     }
 
@@ -228,12 +248,12 @@ export const rewardService = {
 
   /**
    * Submit reward claim from the customer portal.
-   * Includes duplicate-submission guard via optimistic concurrency.
+   * Allows re-submission for processing, rejected, and completed statuses.
    */
   async submitRewardClaim(
     data: RewardClaimInput
   ): Promise<{ success: boolean; message: string }> {
-    // Only update if status is still 'eligible' (optimistic concurrency)
+    // Allow update for eligible, processing, rejected, and completed (re-submission)
     const { data: updated, error } = await supabase
       .from("rewards")
       .update({
@@ -244,7 +264,7 @@ export const rewardService = {
         status: "processing",
       })
       .eq("token", data.token)
-      .in("status", ["eligible", "processing", "rejected"]) 
+      .in("status", ["eligible", "processing", "rejected", "completed"])
       .select()
       .maybeSingle();
 
