@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { processCheckIn } from "@/app/services/checkinService";
 import { rewardService } from "@/app/services/rewardService";
 import confetti from "canvas-confetti";
-import { Reward } from "@/lib/types/reward";
+import { Reward, RewardHistoryEntry } from "@/lib/types/reward";
 
 // Helper to format plate: 99H99999 -> 99H-99999
 const formatDisplayPlate = (plate: string) => {
@@ -34,8 +34,9 @@ export default function CheckInForm({ lang }: { lang: string }) {
     type: "selection" | "completion";
   } | null>(null);
   const [showRewardHistory, setShowRewardHistory] = useState(false);
-  const [rewardHistory, setRewardHistory] = useState<Reward[]>([]);
+  const [rewardHistory, setRewardHistory] = useState<RewardHistoryEntry[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [lastCheckedPlate, setLastCheckedPlate] = useState("");
   const t = translations[lang as keyof typeof translations];
   const [lastNotificationId, setLastNotificationId] = useState<string | null>(null);
 
@@ -105,6 +106,9 @@ export default function CheckInForm({ lang }: { lang: string }) {
     setLoading(true);
     try {
       const cleanPlate = formData.plate.replace("-", "");
+      // Persist the last checked plate so the success modal can open history
+      // after we clear the form values below.
+      setLastCheckedPlate(cleanPlate);
       const cleanPhone = formData.phone.replace(/\s/g, "");
 
       // 1. Kiểm tra xem khách hàng đã tồn tại chưa (Nếu không phải đang ở mode đăng ký mới)
@@ -572,14 +576,26 @@ export default function CheckInForm({ lang }: { lang: string }) {
                 {/* History Button */}
                 <button
                   onClick={async () => {
-                    const cleanPlate = formData.plate.replace("-", "");
+                    const plateForHistory = formData.plate
+                      ? formData.plate.replace("-", "")
+                      : lastCheckedPlate;
+
                     setLoadingHistory(true);
                     setShowRewardHistory(true);
+
+                    if (!plateForHistory) {
+                      // Nothing to query — show empty state
+                      setRewardHistory([]);
+                      setLoadingHistory(false);
+                      return;
+                    }
+
                     try {
-                      const history = await rewardService.getRewardHistory(cleanPlate);
+                      const history = await rewardService.getRewardHistory(plateForHistory);
                       setRewardHistory(history);
                     } catch (error) {
                       console.error("Lỗi lấy lịch sử:", error);
+                      setRewardHistory([]);
                     } finally {
                       setLoadingHistory(false);
                     }
@@ -679,6 +695,11 @@ export default function CheckInForm({ lang }: { lang: string }) {
                         <p className="text-[10px] text-muted-foreground">
                           {new Date(reward.created_at).toLocaleDateString('vi-VN')}
                         </p>
+                        <p className="text-[10px] text-muted-foreground">{
+                          reward.monthly_rank
+                            ? `Hạng ${reward.monthly_rank} · ${reward.monthly_sessions ?? reward.checkin_count} lượt`
+                            : `${reward.monthly_sessions ?? reward.checkin_count} lượt`
+                        }</p>
                       </div>
                       <div className="text-right">
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${reward.status === 'completed' ? 'bg-green-100 text-green-700' :

@@ -53,6 +53,15 @@ export interface RewardWithCustomer extends Reward {
 }
 
 /**
+ * Reward history entry returned to the client with extra context
+ * (monthly rank and number of sessions in that month).
+ */
+export interface RewardHistoryEntry extends Reward {
+  monthly_rank?: number | null;
+  monthly_sessions?: number | null;
+}
+
+/**
  * Leaderboard entry combining ranking + reward status
  */
 export interface LeaderboardEntry {

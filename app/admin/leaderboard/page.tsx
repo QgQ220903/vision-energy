@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { rewardService } from "@/app/services/rewardService";
 import { formatVietnamTime, getCurrentVietnamPeriod } from "@/lib/timezone";
-import type { LeaderboardEntry, RewardWithCustomer } from "@/lib/types/reward";
+import type { LeaderboardEntry, RewardWithCustomer, Reward, RewardHistoryEntry } from "@/lib/types/reward";
 
 type TabType = "monthly" | "alltime" | "history";
 
@@ -23,6 +23,10 @@ export default function LeaderboardPage() {
   // Data
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [rewards, setRewards] = useState<RewardWithCustomer[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyData, setHistoryData] = useState<RewardHistoryEntry[]>([]);
+  const [historyPlate, setHistoryPlate] = useState<string | null>(null);
 
   // Selection for reward generation
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -463,6 +467,28 @@ export default function LeaderboardPage() {
                           </>
                         )}
 
+                        <button
+                          onClick={async () => {
+                            // Open quick history modal for this plate
+                            setHistoryPlate(reward.license_plate);
+                            setHistoryLoading(true);
+                            setHistoryOpen(true);
+                            try {
+                              const data = await rewardService.getRewardHistory(reward.license_plate);
+                              setHistoryData(data as Reward[]);
+                            } catch (err) {
+                              console.error('Lỗi lấy lịch sử thưởng (admin):', err);
+                              setHistoryData([]);
+                            } finally {
+                              setHistoryLoading(false);
+                            }
+                          }}
+                          className="p-1 rounded hover:bg-muted transition-colors"
+                          title="Xem lịch sử thưởng"
+                        >
+                          <Link2 size={12} className="text-muted-foreground" />
+                        </button>
+
                         {reward.id_card_photo_url && (
                           <button
                             onClick={async () => {
@@ -501,6 +527,65 @@ export default function LeaderboardPage() {
           </div>
         </div>
       )}
+
+      {/* Admin: Reward history modal */}
+      {historyOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-card rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold">Lịch sử thưởng: {historyPlate}</h3>
+              <button
+                onClick={() => {
+                  setHistoryOpen(false);
+                  setHistoryData([]);
+                  setHistoryPlate(null);
+                }}
+                className="p-1 rounded hover:bg-muted"
+              >
+                <XCircle size={16} />
+              </button>
+            </div>
+
+            {historyLoading ? (
+              <div className="py-8 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">Đang tải lịch sử...</p>
+              </div>
+            ) : historyData.length > 0 ? (
+              <div className="space-y-2">
+                {historyData.map((r) => (
+                  <div
+                    key={r.id}
+                    className="p-3 bg-muted/30 rounded-xl border border-border/50 flex items-center justify-between"
+                  >
+                    <div>
+                      <p className="font-bold text-sm">Tháng {r.month}/{r.year}</p>
+                      <p className="text-[10px] text-muted-foreground">{new Date(r.created_at).toLocaleDateString('vi-VN')}</p>
+                      <p className="text-[10px] text-muted-foreground">{
+                        r.monthly_rank ? `Hạng ${r.monthly_rank} · ${r.monthly_sessions ?? r.checkin_count} lượt` : `${r.monthly_sessions ?? r.checkin_count} lượt`
+                      }</p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${r.status === 'completed' ? 'bg-green-100 text-green-700' : r.status === 'processing' ? 'bg-blue-100 text-blue-700' : r.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {r.status === 'completed' ? 'Đã nhận' : r.status === 'processing' ? 'Đang duyệt' : r.status === 'rejected' ? 'Từ chối' : 'Chưa nhận'}
+                      </span>
+                      {r.status === 'eligible' && (
+                        <a href={`/rewards/${r.token}`} className="block text-[10px] text-primary font-black mt-1 underline">NHẬN NGAY</a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-12 text-center text-muted-foreground">
+                <p className="text-sm">Không có lịch sử thưởng.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+// Note: Modal JSX is rendered within the component return above; React will mount it in place.

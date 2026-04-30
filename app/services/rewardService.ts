@@ -2,6 +2,7 @@
 import { supabase } from "@/lib/supabase";
 import { customerService, type CustomerRanking } from "./customerService";
 import { getVietnamMonthRange, getCurrentVietnamPeriod } from "@/lib/timezone";
+import { recordEvent } from "@/lib/telemetry";
 import type {
   Reward,
   RewardClaimInput,
@@ -366,7 +367,8 @@ export const rewardService = {
         admin_notes: adminNotes || null,
       })
       .eq("id", rewardId)
-      .eq("status", "processing") // Guard: only if processing
+      // Allow admin to approve rewards that are in 'processing' or still 'eligible'
+      .in("status", ["processing", "eligible"]) // Guard: only certain statuses
       .select()
       .maybeSingle();
 
@@ -381,6 +383,8 @@ export const rewardService = {
         message: "Không thể duyệt. Trạng thái đã thay đổi.",
       };
     }
+
+    console.info(`Reward ${rewardId} approved by admin; updated status: ${updated.status}`);
 
     return { success: true, message: "Đã duyệt thưởng thành công." };
   },
@@ -461,7 +465,7 @@ export const rewardService = {
   /**
    * Get full reward history for a specific customer.
    */
-  async getRewardHistory(licensePlate: string): Promise<Reward[]> {
+  async getRewardHistory(licensePlate: string): Promise<(Reward & { monthly_rank?: number | null; monthly_sessions?: number | null })[]> {
     const cleanPlate = normalizePlate(licensePlate);
 
     const { data, error } = await supabase
@@ -472,7 +476,84 @@ export const rewardService = {
       .order("month", { ascending: false });
 
     if (error) throw error;
-    return (data || []) as Reward[];
+
+    const rewards = (data || []) as Reward[];
+
+    // If there are no rewards, attempt a defensive fallback (match variants)
+    if (rewards.length === 0) {
+      try {
+        console.warn(`No rewards found for plate ${cleanPlate}, retrying with ILIKE fallback`);
+        const { data: altData, error: altError } = await supabase
+          .from("rewards")
+          .select("*")
+          .ilike("license_plate", `%${cleanPlate}%`)
+          .order("year", { ascending: false })
+          .order("month", { ascending: false });
+
+        if (altError) {
+          console.warn("Fallback reward history query failed:", altError.message || altError);
+        } else if (altData && altData.length > 0) {
+          // Emit telemetry for the fallback case so we can monitor frequency
+          try {
+            await recordEvent("reward_history_fallback", {
+              plate: cleanPlate,
+              found: altData.length,
+            });
+          } catch (e) {
+            // ignore telemetry errors
+          }
+
+          // use the fallback results
+          return (altData as Reward[]).map((r) => ({ ...r, monthly_rank: null, monthly_sessions: null }));
+        }
+      } catch (err) {
+        console.warn("Error during fallback reward history lookup:", err);
+      }
+
+      return [];
+    }
+
+    // Group unique month/year pairs so we only fetch rankings once per period
+    const periods = Array.from(
+      new Set(rewards.map((r) => `${r.month}-${r.year}`))
+    ).map((s) => {
+      const [m, y] = s.split("-").map(Number);
+      return { month: m, year: y };
+    });
+
+    // For each period fetch rankings and build a lookup map of plate -> { rank, sessions }
+    const periodRankMaps: Map<string, Map<string, { rank: number; sessions: number }>> = new Map();
+
+    for (const p of periods) {
+      try {
+        const rankings = await customerService.getCustomerRankings({
+          type: "month",
+          month: p.month,
+          year: p.year,
+        });
+
+        const map = new Map<string, { rank: number; sessions: number }>();
+        rankings.forEach((r) => {
+          map.set(r.license_plate, { rank: r.rank, sessions: r.total_sessions });
+        });
+
+        periodRankMaps.set(`${p.month}-${p.year}`, map);
+      } catch (err) {
+        console.warn("Unable to fetch rankings for period", p.month, p.year, err);
+        periodRankMaps.set(`${p.month}-${p.year}`, new Map());
+      }
+    }
+
+    // Enrich each reward with the monthly_rank and monthly_sessions where available
+    return rewards.map((r) => {
+      const lookup = periodRankMaps.get(`${r.month}-${r.year}`);
+      const info = lookup?.get(r.license_plate) || null;
+      return {
+        ...r,
+        monthly_rank: info ? info.rank : null,
+        monthly_sessions: info ? info.sessions : null,
+      };
+    });
   },
 
   // ----------------------------------------------------------

@@ -1,11 +1,18 @@
 "use server";
 
+export type OcrResult = {
+  success: boolean;
+  message: string;
+  full_name?: string;
+  id_number?: string;
+};
+
 /**
  * CLEAN & OPTIMIZED OCR Service Action.
  * Uses Puter's OpenAI-compatible REST API for maximum stability and speed.
  * No dependencies on browser-focused SDKs.
  */
-export async function performOcr(formData: FormData) {
+export async function performOcr(formData: FormData): Promise<OcrResult> {
   try {
     const file = formData.get("file") as File;
     if (!file) throw new Error("Vui lòng tải lên một tệp tin.");
@@ -84,15 +91,15 @@ export async function performOcr(formData: FormData) {
     return processAiResponse(await response.json());
 
   } catch (error: any) {
-    console.error("[OCR] Error:", error.message);
-    return { success: false, message: error.message || "Lỗi xử lý ảnh." };
+    console.error("[OCR] Error:", error?.message || error);
+    return { success: false, message: error?.message || "Lỗi xử lý ảnh.", full_name: undefined, id_number: undefined };
   }
 }
 
 /**
  * Cleanly processes the AI response and handles JSON parsing.
  */
-function processAiResponse(result: any) {
+function processAiResponse(result: any): OcrResult {
   const responseText = result.choices?.[0]?.message?.content || "";
   if (!responseText) throw new Error("AI không trả về kết quả.");
 
@@ -104,11 +111,11 @@ function processAiResponse(result: any) {
     throw new Error("Lỗi phân tích dữ liệu AI.");
   }
 
-  const hasData = data.full_name || data.id_number;
+  const hasData = Boolean(data.full_name || data.id_number);
   return {
     success: hasData,
     message: hasData ? "Thành công" : "Không tìm thấy thông tin trên CCCD.",
-    full_name: data.full_name?.toUpperCase().trim() || "",
-    id_number: data.id_number?.replace(/\D/g, "").trim() || "",
+    full_name: data.full_name?.toUpperCase().trim() || undefined,
+    id_number: data.id_number?.replace(/\D/g, "").trim() || undefined,
   };
 }
